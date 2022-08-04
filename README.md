@@ -13,41 +13,57 @@ nimble install botnim
 > this is an example of botway discord nim template
 
 ```nim
-import dimscord, asyncdispatch, times, options
-import botnim
+import dimscord, asyncdispatch, strutils, options
+import botway
 
 let discord = newDiscordClient(GetToken())
 
-# Handle event for on_ready.
-proc onReady(s: Shard, r: Ready) {.event(discord).} =
-    echo "Ready as " & $r.user
-
-# Handle event for message_create.
 proc messageCreate(s: Shard, m: Message) {.event(discord).} =
-    if m.author.bot: return
-    if m.content == "!ping": # If message content is "!ping".
-        let
-            before = epochTime() * 1000
-            msg = await discord.api.sendMessage(m.channel_id, "ping?")
-            after = epochTime() * 1000
-        # Now edit the message.
-        # Use 'discard' because editMessage returns a new message.
-        discard await discord.api.editMessage(
-            m.channel_id,
-            msg.id, 
-            "Pong! took " & $int(after - before) & "ms | " & $s.latency() & "ms."
-        )
-    elif m.content == "!embed": # Otherwise if message content is "!embed".
-        # Sends a message with embed.
-        discard await discord.api.sendMessage(
-            m.channel_id,
-            embeds = some @[Embed(
-                title: some "Hello there!", 
-                description: some "This is description",
-                color: some 0x7789ec
-            )]
-        )
+  let args = m.content.split(" ")
 
-# Connect to Discord and run the bot.
-waitFor discord.startSession()
+  if m.author.bot or not args[0].startsWith("/"): return
+
+  let command = args[0][1..args[0].high]
+
+  case command.toLowerAscii():
+    of "test":
+      discard await discord.api.sendMessage(m.channel_id, "Success!")
+
+    of "facepalm":
+      discard await discord.api.sendMessage(m.channel_id, "smh",
+        files = @[DiscordFile(
+          name: "assets/facepalm.png"
+        )]
+      )
+
+    of "help":
+      discard await discord.api.sendMessage(
+        m.channel_id,
+        "`test, echo, facepalm` are the commands."
+      )
+
+    of "echo":
+      var text = args[1..args.high].join(" ")
+      if text == "":
+        text = "Empty text."
+
+      discard await discord.api.sendMessage(m.channel_id, text)
+
+    else:
+      discard
+
+proc onReady(s: Shard, r: Ready) {.event(discord).} =
+  echo "Ready as: " & $r.user
+
+  await s.updateStatus(activity = some ActivityStatus(
+    name: "around.",
+    kind: atPlaying
+  ), status = "idle")
+
+proc messageDelete(s: Shard, m: Message, exists: bool) {.event(discord).} =
+  echo "A wild message has been deleted!"
+
+waitFor discord.startSession(
+  gateway_intents = {giGuildMessages, giGuilds, giGuildMembers}
+)
 ```
